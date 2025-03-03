@@ -1,4 +1,5 @@
-import {generateSalt, deriveKey, encrypt, decrypt,generateIv} from './utils/encryptAndDecryptFile.js';
+import {generateSalt, deriveKey, encrypt, decrypt,generateIv} from '../utils/encryptAndDecryptFile.js';
+import {asyncHandler} from '../utils/asyncHandler.js';
 import { uploadToS3 } from '../utils/awsS3.js';
 
 const uploadFile = asyncHandler(async(req, res)=>{
