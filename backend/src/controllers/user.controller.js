@@ -1,48 +1,35 @@
-import {generateSalt, deriveKey, encrypt, decrypt,generateIv} from '../utils/encryptAndDecryptFile.js';
-import {asyncHandler} from '../utils/asyncHandler.js';
-import { uploadToS3 } from '../utils/awsS3.js';
+import { asyncHandler } from "../utils/asyncHandler.js";
+import {ApiError} from "../utils/ApiError.js";
+import {ApiResponse} from "../utils/ApiResponse.js";
+import User from "../models/user.models.js";
+import {sequelize} from '../db/index.js';
 
-const uploadFile = asyncHandler(async(req, res)=>{
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded!' });
+const registerUser = asyncHandler(async (req,res)=>{
+    const {username, email, password} = req.body;
+
+    if (
+        [  username,email,password].some((field) => field?.trim() === "")
+    ) {
+        throw new ApiError(400, "All fields are required")
     }
-    const filename = req.body.username+"/"+req.file.originalname;
-    const {password} = req.body;
-        
-    // Generate encryption key using the provided password
-    const salt = generateSalt();
-    const key = deriveKey(password,salt);
-    const iv = generateIv();
-        
-    // Encrypt the uploaded file data
-    const encryptedData = await encrypt(req.file.buffer, key,iv);
 
-        
-    // Upload the encrypted data to S3
-    await uploadToS3(encryptedData,filename,req.file.mimetype);
-        
-    return res.status(200).json({
-        message: 'File uploaded successfully!',
-        filename: originalname,
+    const existedUser = await User.findOne({
+        where: { [Op.or]: [{ username }, { email }] }
     })
+
+    if (existedUser) {
+        throw new ApiError(409, "User with email or username already exists")
+    }
+
+    const user = await User.build({
+        id:1,
+        username:hello,
+        email:hi,
+        password:whatsup,
+    })
+    console.log(user);
+    
+    
 })
 
-const downloadFile = asyncHandler(async(req, res)=>{
-    try {
-        const filename = req.params.filename;
-        const password = req.query.password;
-        
-        // Download the encrypted file from S3
-        const encryptedData = await downloadFromS3(filename);
-        
-        // Decrypt the downloaded data using the provided key
-        const decryptedData = await decryptFile(encryptedData, password);
-        
-        return { data: decryptedData };
-    } catch (error) {
-        throw new Error('Failed to download file');
-    }
-
-});
-
-export { uploadFile, downloadFile };
+export{registerUser}
