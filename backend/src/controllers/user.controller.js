@@ -3,6 +3,7 @@ import {ApiError} from "../utils/ApiError.js";
 import {ApiResponse} from "../utils/ApiResponse.js";
 import User from "../models/user.models.js";
 import {sequelize} from '../db/index.js';
+import jwt from "jsonwebtoken"
 import { Op } from "sequelize";
 
 const generateAccessTokenAndRefreshToken = async(email) => {
@@ -103,7 +104,15 @@ const loginUser = asyncHandler(async (req, res)=>{
 
     const { accessToken, refreshToken  } = await generateAccessTokenAndRefreshToken(user.email)
 
-    const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
+
+    const loggedInUser = await User.findOne({
+        where: { email },
+    }, {
+        attributes: { 
+            exclude: ['password', 'refreshToken'] 
+        }
+    });
+
 
     const options = {
         httpOnly: true,
