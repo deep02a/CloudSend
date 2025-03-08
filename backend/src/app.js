@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from "cookie-parser"
-import { registerUser } from './controllers/user.controller.js';
+import { registerUser,loginUser } from './controllers/user.controller.js';
 
 const app = express();
 
@@ -13,7 +13,8 @@ app.use(express.urlencoded({limit:"16kb"}));
 app.use(express.static("public"))
 app.use(cookieParser());
 
-app.get('/add',registerUser);
+app.post('/add',registerUser);
+app.post('/login',loginUser);
 
 import userRouter from './routes/user.routes.js';
 
