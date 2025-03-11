@@ -32,7 +32,7 @@ User.beforeCreate(async (user, options) => {
 });
 
 User.beforeUpdate(async (user, options) => {
-    if (user.isModified('password')) {
+    if (user.changed('password')) {
         user.password = await bcrypt.hash(user.password, 10);
     }
 });
@@ -41,7 +41,7 @@ User.prototype.isPasswordCorrect = async function(password) {
     return await bcrypt.compare(password, this.password);
 };
 
-User.prototype.generateAccessToken = async function(){
+User.prototype.generateAccessToken =  function(){
     return jwt.sign(
         {
             email:this.email,
@@ -54,7 +54,7 @@ User.prototype.generateAccessToken = async function(){
     )
 }
 
-User.prototype.generateRefreshToken = async function(){
+User.prototype.generateRefreshToken = function(){
     return jwt.sign(
         {
             email:this.email,

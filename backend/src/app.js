@@ -1,7 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from "cookie-parser"
-import { registerUser,loginUser } from './controllers/user.controller.js';
+import { registerUser,loginUser,logoutUser,refreshAccessToken,changeCurrentPassword } from './controllers/user.controller.js';
+import { verifyJWT } from './middlewares/auth.middleware.js';
 
 const app = express();
 
@@ -15,6 +16,9 @@ app.use(cookieParser());
 
 app.post('/add',registerUser);
 app.post('/login',loginUser);
+app.post('/logout',verifyJWT,logoutUser);
+app.post('/refresh-token',refreshAccessToken);
+app.post('/change-password',verifyJWT,changeCurrentPassword);
 
 import userRouter from './routes/user.routes.js';
 
