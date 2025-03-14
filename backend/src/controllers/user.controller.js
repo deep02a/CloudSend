@@ -2,9 +2,80 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import {ApiError} from "../utils/ApiError.js";
 import {ApiResponse} from "../utils/ApiResponse.js";
 import User from "../models/user.models.js";
-import {sequelize} from '../db/index.js';
-import jwt from "jsonwebtoken"
+import jwt from "jsonwebtoken";
+import nodemailer from "nodemailer";
 import { Op } from "sequelize";
+
+const otpStore = new Map();
+
+
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.GMAIL, 
+        pass: process.env.GMAIL_PASSWORD 
+    }
+});
+
+const sendOTP = async (email, otp) => {
+    const mailOptions = {
+        from: 'your-email@gmail.com',
+        to: email,
+        subject: 'Your One-Time Password (OTP)',
+        text: `Your OTP is ${otp}. It will expire in 5 minutes.`
+    };
+
+    await transporter.sendMail(mailOptions);
+}
+
+const generateOTP = ()=>{
+    const otpLength = 6;
+    const charset = "0123456789";
+    let result = '';
+    for (let i = 0; i < otpLength; i++) {
+        result += charset[Math.floor(Math.random() * charset.length)];
+    }
+    return result;
+}
+
+const sendOTPtoGmail = asyncHandler(async (req, res)=>{
+    const { email } = req.body;
+    const otp = generateOTP();
+    const expiresAt = Date.now() + 300000; 
+    otpStore.set(email, { value: otp, expires: expiresAt });
+
+    try {
+        await sendOTP(email, otp);
+        res.status(200).json({ message: 'OTP sent successfully' });
+    } catch (error) {
+        console.error('Error sending OTP:', error);
+        res.status(500).json({ message: 'Failed to send OTP' });
+    }
+});
+
+const verifyOTP = asyncHandler(async (req, res)=>{
+    const { email, otp } = req.body;
+    if (!otpStore.has(email)) {
+        return res.status(401).json({ message: 'OTP not found' });
+    }
+    const storedOtp = otpStore.get(email);
+    if (storedOtp.value === otp && Date.now() < storedOtp.expires) {
+        otpStore.delete(email);
+        res.status(200).json({ message: 'OTP verified successfully' });
+    } else {
+        res.status(401).json({ message: 'Invalid or expired OTP' });
+    }
+});
+
+import schedule from 'node-schedule';
+ schedule.scheduleJob('*/5 * * * *', () => {
+    const now = Date.now();
+    for (const [email, otp] of otpStore.entries()) {
+        if (now >= otp.expires) {
+            otpStore.delete(email);
+        }
+    }
+});
 
 
 const generateAccessTokenAndRefreshToken = async(email) => {
@@ -35,6 +106,7 @@ const registerUser = asyncHandler(async (req,res)=>{
 
 
     const {username, email, password} = req.body;
+
     if (
         [  username,email,password].some((field) => field?.trim() === "")
     ) {
@@ -78,20 +150,15 @@ const registerUser = asyncHandler(async (req,res)=>{
 })
 
 const loginUser = asyncHandler(async (req, res)=>{
-    
-    const {email, username, password} = req.body
 
-    if (!username && !email) {
-        throw new ApiError(400, "username or email is required")
+    const {email, password} = req.body
+
+    if (!email) {
+        throw new ApiError(400, "email is required")
     }
 
     const user = await User.findOne({
-        where: {
-            [Op.or]: [
-                { email },
-                { username },
-            ],
-        },
+        where:{ email }
     });
 
     if (!user) {
@@ -231,4 +298,8 @@ const  changeCurrentPassword = asyncHandler(async (req, res)=>{
     .json(new ApiResponse(200, {}, "Password changed successfully"))
 })
 
-export {registerUser, loginUser, logoutUser,refreshAccessToken,changeCurrentPassword}
+const changeEmail = asyncHandler(async (req, res)=>{
+    const {email} = req.body;
+});
+
+export {registerUser, loginUser, logoutUser,refreshAccessToken,changeCurrentPassword,sendOTPtoGmail,verifyOTP}
