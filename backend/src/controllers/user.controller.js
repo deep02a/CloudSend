@@ -122,7 +122,6 @@ const registerUser = asyncHandler(async (req,res)=>{
         throw new ApiError(409, "User with email already exists")
     }
 
-
     const user = User.build({
         username,
         email,

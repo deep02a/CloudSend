@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import {sequelize} from '../db/index.js';
 
-const User = sequelize.define('User',{
+const User = sequelize.define('users',{
     username:{
         type:DataTypes.STRING,
         allowNull:false,
@@ -11,12 +11,17 @@ const User = sequelize.define('User',{
     email:{
         type:DataTypes.STRING,
         allowNull:false,
+        primaryKey:true,
         unique: true,
         lowercase:true
     },
     password:{
         type:DataTypes.STRING,
         allowNull:[false,'password is required']
+    },
+    isVerified: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false
     },
     refreshToken: {
         type: DataTypes.STRING,

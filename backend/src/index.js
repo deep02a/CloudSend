@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import { app } from "./app.js";
 import User from "./models/user.models.js";
+import Files from "./models/file.models.js";
 dotenv.config({
     path: './env'
 });
@@ -8,6 +9,7 @@ dotenv.config({
 import {connectDB} from './db/index.js';
 
 User.sync();
+Files.sync();
 
 
 connectDB()
