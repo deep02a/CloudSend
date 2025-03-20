@@ -54,13 +54,28 @@ const sendOTPtoGmail = asyncHandler(async (req, res)=>{
 });
 
 const verifyOTP = asyncHandler(async (req, res)=>{
-    const { email, otp } = req.body;
-    if (!otpStore.has(email)) {
+    const { otp, tempToken } = req.body;
+
+    const decoded = jwt.verify(tempToken, process.env.JWT_SECRET);
+
+    if (!otpStore.has(decoded.email)) {
+        //console.error(error)
         return res.status(401).json({ message: 'OTP not found' });
     }
-    const storedOtp = otpStore.get(email);
+
+    const storedOtp = otpStore.get(decoded.email);
+
     if (storedOtp.value === otp && Date.now() < storedOtp.expires) {
-        otpStore.delete(email);
+        const newUser= User.build(
+            {
+                username:decoded.username, 
+                email:decoded.email, 
+                password:decoded.password,
+                isVerified: true
+            }
+        );
+        await newUser.save();
+        otpStore.delete(decoded.email);
         res.status(200).json({ message: 'OTP verified successfully' });
     } else {
         res.status(401).json({ message: 'Invalid or expired OTP' });
@@ -118,34 +133,29 @@ const registerUser = asyncHandler(async (req,res)=>{
             { email: email }
     });
     
+    
     if (existedUser) {
         throw new ApiError(409, "User with email already exists")
     }
 
-    const user = User.build({
-        username,
-        email,
-        password,
-    })
-    await user.save();
-    
-    const createdUser = await User.findOne({
-        where: { email },
-    }, {
-        attributes: { 
-            exclude: ['password', 'refreshToken'] 
-        }
-    });
-    
+    const otp = generateOTP();
+    const expiresAt = Date.now() + 300000; 
+    otpStore.set(email, { value: otp, expires: expiresAt });
 
-    if (!createdUser) {
-        throw new ApiError(500, "Something went wrong while registering the user")
-    }
-
-    return res.status(201).json(
-        new ApiResponse(200, createdUser, "User registered Successfully")
-    );
-    
+    try {
+        await sendOTP(email, otp);
+        const tempToken = jwt.sign(
+            {username,email,password},
+            process.env.JWT_SECRET,
+            {expiresIn: '10m'}
+        )
+        res.status(200).json(
+            new ApiResponse(200, tempToken, "OTP sent to email")
+        );    
+    } catch (error) {
+        console.error('Error sending OTP:', error);
+        res.status(500).json({ message: 'Failed to send OTP' });
+    }    
 })
 
 const loginUser = asyncHandler(async (req, res)=>{

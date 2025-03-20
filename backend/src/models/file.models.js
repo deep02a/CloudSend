@@ -22,7 +22,6 @@ const Files = sequelize.define('files', {
     tableName: 'files',
 });
 
-// Define the association here if you prefer to do it in the model file
 const File = sequelize.models.files;
 const User = sequelize.models.users;
 

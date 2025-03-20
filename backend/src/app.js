@@ -14,7 +14,7 @@ app.use(express.urlencoded({limit:"16kb"}));
 app.use(express.static("public"))
 app.use(cookieParser());
 
-app.post('/add',registerUser);
+app.post('/register',registerUser);
 app.post('/login',loginUser);
 app.post('/logout',verifyJWT,logoutUser);
 app.post('/refresh-token',refreshAccessToken);
