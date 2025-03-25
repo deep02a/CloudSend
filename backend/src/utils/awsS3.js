@@ -1,4 +1,4 @@
-import { S3Client,PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client,PutObjectCommand,GetObjectCommand } from "@aws-sdk/client-s3";
 
 const s3Client = new S3Client({ 
     region: "ap-south-1",
@@ -14,7 +14,26 @@ const uploadToS3 = async(fileBuffer,filename,mimetype)=>{
         Key: filename,
         ContentType:mimetype,
     })
-    const upload = await send(s3Client,command);
+    const upload = await  s3Client.send(command);
     return upload;
 }
-export {uploadToS3}
+
+const streamToBuffer = async (stream) => {
+    const chunks = [];
+    for await (const chunk of stream) {
+        chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
+};
+
+const getFromS3 = async(filename)  =>{
+    const command = new GetObjectCommand({
+        Bucket: 'project.encryptedfiles',
+        Key: filename,
+    })
+    const data = await s3Client.send(command);
+    if (!data.Body) throw new Error("File not found");
+
+    return await streamToBuffer(data.Body);
+}
+export {uploadToS3,getFromS3}

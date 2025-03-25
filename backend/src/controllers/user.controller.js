@@ -38,49 +38,6 @@ const generateOTP = ()=>{
     return result;
 }
 
-const sendOTPtoGmail = asyncHandler(async (req, res)=>{
-    const { email } = req.body;
-    const otp = generateOTP();
-    const expiresAt = Date.now() + 300000; 
-    otpStore.set(email, { value: otp, expires: expiresAt });
-
-    try {
-        await sendOTP(email, otp);
-        res.status(200).json({ message: 'OTP sent successfully' });
-    } catch (error) {
-        console.error('Error sending OTP:', error);
-        res.status(500).json({ message: 'Failed to send OTP' });
-    }
-});
-
-const verifyOTP = asyncHandler(async (req, res)=>{
-    const { otp, tempToken } = req.body;
-
-    const decoded = jwt.verify(tempToken, process.env.JWT_SECRET);
-
-    if (!otpStore.has(decoded.email)) {
-        //console.error(error)
-        return res.status(401).json({ message: 'OTP not found' });
-    }
-
-    const storedOtp = otpStore.get(decoded.email);
-
-    if (storedOtp.value === otp && Date.now() < storedOtp.expires) {
-        const newUser= User.build(
-            {
-                username:decoded.username, 
-                email:decoded.email, 
-                password:decoded.password,
-                isVerified: true
-            }
-        );
-        await newUser.save();
-        otpStore.delete(decoded.email);
-        res.status(200).json({ message: 'OTP verified successfully' });
-    } else {
-        res.status(401).json({ message: 'Invalid or expired OTP' });
-    }
-});
 
 import schedule from 'node-schedule';
  schedule.scheduleJob('*/5 * * * *', () => {
@@ -157,6 +114,35 @@ const registerUser = asyncHandler(async (req,res)=>{
         res.status(500).json({ message: 'Failed to send OTP' });
     }    
 })
+
+const verifyOTP = asyncHandler(async (req, res)=>{
+    const { otp, tempToken } = req.body;
+
+    const decoded = jwt.verify(tempToken, process.env.JWT_SECRET);
+
+    if (!otpStore.has(decoded.email)) {
+        //console.error(error)
+        return res.status(401).json({ message: 'OTP not found' });
+    }
+
+    const storedOtp = otpStore.get(decoded.email);
+
+    if (storedOtp.value === otp && Date.now() < storedOtp.expires) {
+        const newUser= User.build(
+            {
+                username:decoded.username, 
+                email:decoded.email, 
+                password:decoded.password,
+                isVerified: true
+            }
+        );
+        await newUser.save();
+        otpStore.delete(decoded.email);
+        res.status(200).json({ message: 'OTP verified successfully' });
+    } else {
+        res.status(401).json({ message: 'Invalid or expired OTP' });
+    }
+});
 
 const loginUser = asyncHandler(async (req, res)=>{
 
@@ -307,8 +293,5 @@ const  changeCurrentPassword = asyncHandler(async (req, res)=>{
     .json(new ApiResponse(200, {}, "Password changed successfully"))
 })
 
-const changeEmail = asyncHandler(async (req, res)=>{
-    const {email} = req.body;
-});
 
-export {registerUser, loginUser, logoutUser,refreshAccessToken,changeCurrentPassword,sendOTPtoGmail,verifyOTP}
+export {registerUser, loginUser, logoutUser,refreshAccessToken,changeCurrentPassword,verifyOTP}

@@ -7,7 +7,8 @@ const deriveKey=(password, salt)=>{
     return crypto.pbkdf2Sync(password, salt, 1000, 32, 'sha256');
 }
 const generateIv=()=>{
-    return crypto.randomBytes(16).toString('hex');
+    const iv= crypto.randomBytes(16);
+    return Buffer.from(iv,'utf8');
 }
 
 const encrypt = async(data,key,iv) =>{
@@ -29,7 +30,7 @@ const encrypt = async(data,key,iv) =>{
     };
 
 
-const decrypt = async(ciphertext, key,iv,salt) =>{
+const decrypt = async(ciphertext, key,iv) =>{
     const decipher = crypto.createDecipher('aes-256-cbc', key,iv);
     const decrypted = await new Promise((resolve, reject) => {
         let chunks = [];
@@ -40,7 +41,7 @@ const decrypt = async(ciphertext, key,iv,salt) =>{
             decipher.write(ciphertext);
             decipher.end();
         } catch (error) {
-            reject(err);
+            reject(error);
         }
     });
     return decrypted;

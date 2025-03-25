@@ -2,12 +2,21 @@ import { DataTypes } from 'sequelize';
 import {sequelize} from '../db/index.js';
 
 const Files = sequelize.define('files', {
-    filename: {
+    
+    originalName: {
         type: DataTypes.STRING,
         allowNull: false
     },
-    filePath: {
-        type: DataTypes.STRING,
+    size: {
+        type: DataTypes.BIGINT,
+        allowNull: false
+    },
+    encryptionKey: {
+        type: DataTypes.STRING(64),
+        allowNull: false
+    },
+    iv: {
+        type: DataTypes.STRING(43),
         allowNull: false
     },
     userEmail: {
