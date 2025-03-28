@@ -1,65 +1,128 @@
-import {generateSalt, deriveKey, encrypt, decrypt,generateIv} from '../utils/encryptAndDecryptFile.js';
+import { encrypt, decryptBuffer,generateIv} from '../utils/encryptAndDecryptFile.js';
 import {asyncHandler} from '../utils/asyncHandler.js';
-import { uploadToS3 } from '../utils/awsS3.js';
+import {uploadToS3,getFromS3 } from '../utils/awsS3.js';
 import Files from '../models/file.models.js';
+import fs from "fs";
+import path from "path";
 
-const uploadFile = asyncHandler(async(req, res)=>{
+const uploadFile = asyncHandler(async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded!' });
     }
 
-    const s3Key=`users/${req.user.email}/${req.file.originalname}`;
-    const {password} = req.body;
-        
-    // Generate encryption key using the provided password
-    const salt = generateSalt();
-    const key = deriveKey(password,salt);
-    const iv = generateIv();
-        
-    // Encrypt the uploaded file data
-    const encryptedData = await encrypt(req.file.buffer, key,iv);
+    const timestamp = Date.now();
+    const s3Key = `users/${req.user.email}/${timestamp}_${req.file.originalname}`;
 
-        
-    // Upload the encrypted data to S3
-    await uploadToS3(encryptedData,s3Key,req.file.mimetype);
-
-    const newFile = Files.build({
-        originalName: req.file.originalname,
-        size: req.file.size,
-        encryptionKey: key.toString('hex'),
-        iv: iv.toString('hex'),
-        userEmail:req.user.email,
-        email:req.user.email
-    });
-    console.log(req.user);
-    await newFile.save();
-
-    if (!newFile) {
-        return res.status(500).json({ error: 'Failed to save metadata to database' });
-    }
-        
-    return res.status(200).json({
-        message: 'File uploaded successfully!',
-        filename: req.file.originalname,
-    })
-})
-
-const downloadFile = asyncHandler(async(req, res)=>{
     try {
-        const filename = req.params.filename;
-        const password = req.query.password;
-        
-        // Download the encrypted file from S3
-        const encryptedData = await downloadFromS3(filename);
-        
-        // Decrypt the downloaded data using the provided key
-        const decryptedData = await decryptFile(encryptedData, password);
-        
-        return { data: decryptedData };
-    } catch (error) {
-        throw new Error('Failed to download file');
-    }
+        // Retrieve and decrypt user's stored encryption key
+        const decryptedKey = Buffer.from(req.user.getDecryptedKey(), 'hex');
+        const iv = generateIv(); 
 
+        if (iv.length !== 16) {
+            throw new Error("IV generation failed: IV must be 16 bytes long.");
+        }
+
+        // Define file paths
+        const filePath = req.file.path;
+        const encryptedFilePath = `${filePath}.enc`;
+
+        // Encrypt the file data in the temp path
+        await encrypt(filePath, decryptedKey, iv);
+
+        // Ensure the encrypted file exists before uploading
+        await fs.promises.access(encryptedFilePath, fs.constants.F_OK);
+
+        // Upload the encrypted data to S3
+        const encryptedStream = fs.createReadStream(encryptedFilePath);
+        await uploadToS3(encryptedStream, s3Key, req.file.mimetype);
+
+        // Save file metadata to the database
+        const newFile = await Files.create({
+            originalName: req.file.originalname,
+            size: req.file.size,
+            iv: iv.toString('hex'), // Store IV in hex format
+            userEmail: req.user.email, // Foreign key linking to User
+            s3Key,
+        });
+
+        // Ensure the temp file is deleted
+        try {
+            await fs.promises.unlink(encryptedFilePath);
+        } catch (err) {
+            console.warn(`Failed to delete temp encrypted file: ${err.message}`);
+        }
+
+        return res.status(200).json({
+            message: 'File uploaded successfully!',
+            filename: req.file.originalname,
+        });
+    } catch (error) {
+        console.error("Error:", error);
+
+        // Cleanup on failure
+        try {
+            if (fs.existsSync(encryptedFilePath)) {
+                await fs.promises.unlink(encryptedFilePath);
+            }
+        } catch (err) {
+            console.warn(`Cleanup failed: ${err.message}`);
+        }
+
+        return res.status(500).json({ error: "File upload failed!" });
+    }
 });
 
-export { uploadFile, downloadFile, };
+
+const downloadFile = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    // Fetch file metadata from DB
+    const file = await Files.findOne({ where: { id, userEmail: req.user.email } });
+    if (!file) return res.status(404).json({ error: "File not found!" });
+
+    const { s3Key, iv, originalName } = file;
+
+    try {
+        // Fetch encrypted file from S3
+        const encryptedBuffer = await getFromS3(s3Key);
+        if (!encryptedBuffer || encryptedBuffer.length === 0) {
+            return res.status(500).json({ error: "Failed to retrieve encrypted file from S3" });
+        }
+
+        // Retrieve and decrypt user's stored encryption key
+        const decryptedKey = Buffer.from(req.user.getDecryptedKey(), 'hex');
+        if (decryptedKey.length !== 32) {
+            return res.status(400).json({ error: "Invalid encryption key: Key must be 32 bytes" });
+        }
+
+        const ivBuffer = Buffer.from(iv, 'hex');
+        if (ivBuffer.length !== 16) {
+            return res.status(400).json({ error: "Invalid IV: IV must be 16 bytes" });
+        }
+
+        // Decrypt the file
+        let decryptedBuffer;
+        try {
+            decryptedBuffer = decryptBuffer(encryptedBuffer, decryptedKey, ivBuffer);
+        } catch (decryptError) {
+            console.error("Decryption Error:", decryptError);
+            return res.status(500).json({ error: "File decryption failed!" });
+        }
+
+        // Ensure original filename exists before setting headers
+        const safeFilename = originalName ? originalName.replace(/[^a-zA-Z0-9.\-_]/g, "_") : "downloaded_file";
+
+        // Send the decrypted file as a response
+        res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
+        res.setHeader('Content-Type', 'application/octet-stream');
+        return res.send(decryptedBuffer);
+
+    } catch (error) {
+        console.error("Download Error:", error);
+        return res.status(500).json({ error: "File download failed!" });
+    }
+});
+
+
+export { uploadFile, downloadFile };
+

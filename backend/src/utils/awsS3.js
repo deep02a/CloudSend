@@ -1,4 +1,4 @@
-import { S3Client,PutObjectCommand,GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client,PutObjectCommand,GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 
 const s3Client = new S3Client({ 
     region: "ap-south-1",
@@ -18,22 +18,61 @@ const uploadToS3 = async(fileBuffer,filename,mimetype)=>{
     return upload;
 }
 
-const streamToBuffer = async (stream) => {
-    const chunks = [];
-    for await (const chunk of stream) {
-        chunks.push(chunk);
+const checkIfFileExists = async (s3Key) => {
+    try {
+        const command = {
+            Bucket: 'project.encryptedfiles',
+            Key: s3Key
+        };
+        await s3Client.send(new HeadObjectCommand(command)); // Checks if file exists
+        return true;
+    } catch (error) {
+        console.error("File does not exist or access denied:", error);
+        return false;
     }
-    return Buffer.concat(chunks);
 };
 
-const getFromS3 = async(filename)  =>{
-    const command = new GetObjectCommand({
-        Bucket: 'project.encryptedfiles',
-        Key: filename,
-    })
-    const data = await s3Client.send(command);
-    if (!data.Body) throw new Error("File not found");
 
-    return await streamToBuffer(data.Body);
-}
+const streamToBuffer = async (stream) => {
+    return new Promise((resolve, reject) => {
+        const chunks = [];
+
+        stream.on("data", (chunk) => chunks.push(chunk));
+        stream.on("end", () => resolve(Buffer.concat(chunks)));
+        stream.on("error", (error) => {
+            console.error("Stream error:", error);
+            reject(new Error(`Failed to convert stream to buffer: ${error.message}`));
+        });
+    });
+};
+
+
+const getFromS3 = async (s3Key) => {
+    const params = {
+        Bucket: 'project.encryptedfiles',
+        Key: s3Key
+    };
+
+    try {
+        console.log(`Checking if file exists in S3: ${s3Key}`);
+        if (!(await checkIfFileExists(s3Key))) {
+            throw new Error(`File not found: ${s3Key}`);
+        }
+
+        console.log("Downloading file from S3...");
+        const command = new GetObjectCommand(params);
+        const { Body } = await s3Client.send(command);
+
+        console.log("Converting stream to buffer...");
+        const buffer = await streamToBuffer(Body);
+
+        console.log(`File ${s3Key} downloaded successfully.`);
+        return buffer;
+    } catch (error) {
+        console.error(`Error downloading file from S3 [${s3Key}]:`, error.message);
+        throw new Error(`Failed to download file: ${error.message}`);
+    }
+};
+
+
 export {uploadToS3,getFromS3}

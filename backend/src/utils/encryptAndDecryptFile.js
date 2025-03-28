@@ -1,50 +1,52 @@
-import crypto from 'crypto';
+import crypto from "crypto";
+import fs from "fs";
+import path from "path";
+import { pipeline } from "stream";
+import { promisify } from "util";
 
-const generateSalt=()=> {
-    return crypto.randomBytes(16).toString('hex');
-}
-const deriveKey=(password, salt)=>{
-    return crypto.pbkdf2Sync(password, salt, 1000, 32, 'sha256');
-}
-const generateIv=()=>{
-    const iv= crypto.randomBytes(16);
-    return Buffer.from(iv,'utf8');
-}
-
-const encrypt = async(data,key,iv) =>{
-    const cipher = crypto.createCipheriv('aes-256-cbc', key,iv);
-    let chunks = [];
-    const encryptedData = await new Promise((resolve, reject) => {
-        cipher.on('data', (chunk) => chunks.push(chunk));
-        cipher.on('end', () => resolve(Buffer.concat(chunks)));
-        cipher.on('error', (err) => reject(err));
-            
-            try {
-                cipher.write(data);
-                cipher.end();
-            } catch (err) {
-                reject(err);
-            }
-        });
-        return encryptedData ;
-    };
+const pipelineAsync = promisify(pipeline);
 
 
-const decrypt = async(ciphertext, key,iv) =>{
-    const decipher = crypto.createDecipher('aes-256-cbc', key,iv);
-    const decrypted = await new Promise((resolve, reject) => {
-        let chunks = [];
-        decipher.on('data', (chunk) => chunks.push(chunk));
-        decipher.on('end', () => resolve(Buffer.concat(chunks)));
-        decipher.on('error', (err) => reject(err));
-        try {
-            decipher.write(ciphertext);
-            decipher.end();
-        } catch (error) {
-            reject(error);
-        }
-    });
-    return decrypted;
-}
+//const generateSalt=()=> {
+//    return crypto.randomBytes(16).toString('hex');
+//}
+//const deriveKey=(password, salt)=>{
+//    return crypto.pbkdf2Sync(password, salt, 1000, 32, 'sha256');
+//}
+const generateIv = () => {
+    return crypto.randomBytes(16); // No need for Buffer.from()
+};
 
-export {generateSalt, deriveKey, encrypt, decrypt,generateIv}
+const encrypt = async (filePath, key, iv) => {
+    const encryptedFilePath = `${filePath}.enc`; // Append .enc to indicate encryption
+    const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+
+    try {
+        await pipelineAsync(
+            fs.createReadStream(filePath),  // Read the file
+            cipher,                         // Encrypt it
+            fs.createWriteStream(encryptedFilePath) // Write to a new file
+        );
+
+        await fs.promises.unlink(filePath); // Remove the original file after encryption
+        return encryptedFilePath;
+    } catch (error) {
+        throw new Error(`Encryption failed: ${error.message}`);
+    }
+};
+
+
+
+const decryptBuffer = (encryptedBuffer, key, iv) => {
+    try {
+        const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+        let decrypted = Buffer.concat([decipher.update(encryptedBuffer), decipher.final()]);
+        return decrypted;
+    } catch (error) {
+        console.error("Decryption failed:", error.message);
+        throw new Error("Invalid password, IV, or corrupted data");
+    }
+};
+
+
+export { encrypt, decryptBuffer,generateIv}

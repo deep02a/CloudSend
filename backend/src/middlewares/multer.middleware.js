@@ -1,26 +1,48 @@
 import multer from "multer";
+import path from "path";
+import fs from "fs";
 
-const storage = multer.memoryStorage({
-    destination: function (req, file, cb) {
-      cb(null,"./public/temp")
+// File size limit (200MB)
+const FILE_SIZE_LIMIT = 200 * 1024 * 1024; // 200MB in bytes
+
+// Directory where files will be temporarily stored
+const TEMP_DIR = path.join("public", "temp");
+
+// Ensure the temp directory exists
+if (!fs.existsSync(TEMP_DIR)) {
+    fs.mkdirSync(TEMP_DIR, { recursive: true });
+}
+
+// File filter function with proper error handling
+const fileFilter = (req, file, cb) => {
+    const videoMimeTypes = [
+        "video/mp4",       
+        "video/x-mpegurl",  
+        "video/quicktime",  
+        "video/webm",    
+        "video/x-msvideo"  
+    ];
+
+    if (videoMimeTypes.includes(file.mimetype)) {
+        return cb(new Error("Video files are not allowed!"), false); // Reject with error message
+    }
+
+    cb(null, true); // Accept other files
+};
+
+// Configure Multer for disk storage
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, TEMP_DIR); // Save files to public/temp
     },
-    fileFilter: (req, file, cb) => {
-      const videoMimeTypes = [
-          'video/mp4',       // .mp4
-          'video/x-mpegurl',  // .m3u8
-          'video/quicktime',  // .mov
-          'video/waveform',   // .webm
-          'video/x-msvideo'    // .avi, .asf
-      ];
-      if (videoMimeTypes.includes(file.mimetype)) {
-        return cb(new Error('Video files are not allowed!'));
+    filename: (req, file, cb) => {
+        cb(null, file.originalname); // Keep the original filename
     }
-    cb(null, true);
-  },
-  limits: { fileSize: '200mb' },
-    filename: function (req, file, cb) {
-      cb(null, file.originalname)
-    }
-  })
-  
-export const upload = multer({ storage })
+});
+
+export const upload = multer({
+    storage,
+    fileFilter,
+    limits: { fileSize: FILE_SIZE_LIMIT }
+});
+

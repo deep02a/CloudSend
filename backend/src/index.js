@@ -8,8 +8,8 @@ dotenv.config({
 
 import {connectDB} from './db/index.js';
 
-User.sync();
-Files.sync();
+User.sync({alter:true});
+Files.sync({alter:true});
 
 
 connectDB()
