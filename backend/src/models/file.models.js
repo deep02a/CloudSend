@@ -4,8 +4,9 @@ import User from './user.models.js'
 
 const Files = sequelize.define('files', {
     id: {
-        type: DataTypes.UUID, // UUID type
-        defaultValue: DataTypes.UUIDV4, // Automatically generate a UUID
+        type: DataTypes.UUID,
+        defaultValue: DataTypes.UUIDV4, 
+        allowNull: false,
         primaryKey: true
     },
     originalName: {
@@ -14,10 +15,6 @@ const Files = sequelize.define('files', {
     },
     size: {
         type: DataTypes.BIGINT,
-        allowNull: false
-    },
-    encryptionKey: {
-        type: DataTypes.STRING(64),
         allowNull: false
     },
     iv: {

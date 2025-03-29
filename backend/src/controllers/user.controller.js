@@ -4,9 +4,18 @@ import {ApiResponse} from "../utils/ApiResponse.js";
 import User from "../models/user.models.js";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
+import crypto from 'crypto';
 import { Op } from "sequelize";
 
 const otpStore = new Map();
+
+
+const encryptKey = (key) => {
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv("aes-256-cbc", Buffer.from(process.env.MASTER_KEY, "hex"), iv);
+    const encrypted = Buffer.concat([cipher.update(key), cipher.final()]);
+    return `${iv.toString("hex")}:${encrypted.toString("hex")}`;
+};
 
 
 const transporter = nodemailer.createTransport({
@@ -128,15 +137,18 @@ const verifyOTP = asyncHandler(async (req, res)=>{
     const storedOtp = otpStore.get(decoded.email);
 
     if (storedOtp.value === otp && Date.now() < storedOtp.expires) {
-        const newUser= User.build(
+
+        const userKey = crypto.randomBytes(32).toString("hex");  // Generate a new encryption key
+        const encryptedKey = encryptKey(userKey); 
+        const newUser= await User.create(
             {
                 username:decoded.username, 
                 email:decoded.email, 
                 password:decoded.password,
-                isVerified: true
+                encryptionKey: encryptedKey,
+                isVerified: true,
             }
         );
-        await newUser.save();
         otpStore.delete(decoded.email);
         res.status(200).json({ message: 'OTP verified successfully' });
     } else {

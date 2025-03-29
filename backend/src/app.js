@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from "cookie-parser"
 import { registerUser,loginUser,logoutUser,refreshAccessToken,changeCurrentPassword,verifyOTP } from './controllers/user.controller.js';
-import { uploadFile } from './controllers/file.controller.js';
+import { uploadFile,downloadFile,fetchFiles } from './controllers/file.controller.js';
 import { verifyJWT } from './middlewares/auth.middleware.js';
 import { upload } from './middlewares/multer.middleware.js';
 
@@ -26,6 +26,9 @@ app.post('/refresh-token',refreshAccessToken);
 app.post('/change-password',verifyJWT,changeCurrentPassword);
 
 app.post('/upload-file',upload.single('file'),verifyJWT,uploadFile)
+app.get('/download/:id',verifyJWT,downloadFile)
+
+app.get('/fetch-files',verifyJWT,fetchFiles)
 
 
 //import userRouter from './routes/user.routes.js';

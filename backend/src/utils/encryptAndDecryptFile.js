@@ -14,7 +14,7 @@ const pipelineAsync = promisify(pipeline);
 //    return crypto.pbkdf2Sync(password, salt, 1000, 32, 'sha256');
 //}
 const generateIv = () => {
-    return crypto.randomBytes(16); // No need for Buffer.from()
+    return crypto.randomBytes(16); 
 };
 
 const encrypt = async (filePath, key, iv) => {
@@ -23,9 +23,9 @@ const encrypt = async (filePath, key, iv) => {
 
     try {
         await pipelineAsync(
-            fs.createReadStream(filePath),  // Read the file
-            cipher,                         // Encrypt it
-            fs.createWriteStream(encryptedFilePath) // Write to a new file
+            fs.createReadStream(filePath),  
+            cipher,                         
+            fs.createWriteStream(encryptedFilePath) 
         );
 
         await fs.promises.unlink(filePath); // Remove the original file after encryption

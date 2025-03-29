@@ -3,7 +3,32 @@ import {asyncHandler} from '../utils/asyncHandler.js';
 import {uploadToS3,getFromS3 } from '../utils/awsS3.js';
 import Files from '../models/file.models.js';
 import fs from "fs";
-import path from "path";
+import { v4 as uuidv4 } from 'uuid';
+import { Op } from 'sequelize';
+
+
+const fetchFiles = asyncHandler(async(req,res) => {
+    try {
+        const userEmail = req.user.email;
+    
+        const files = await Files.findAll({
+            where: { userEmail },
+            order: [['createdAt', 'DESC']],
+            attributes: ['id', 'originalName', 'size', 's3Key']
+        });
+    
+        if (!files.length) {
+            return res.status(404).json({ message: 'No files found for this user.' });
+        }
+    
+        res.status(200).json({ files });
+    } catch (error) {
+        console.error("Error fetching files:", error);
+        res.status(500).json({ message: 'Internal server error.' });
+        
+    }
+});
+
 
 const uploadFile = asyncHandler(async (req, res) => {
     if (!req.file) {
@@ -14,8 +39,9 @@ const uploadFile = asyncHandler(async (req, res) => {
     const s3Key = `users/${req.user.email}/${timestamp}_${req.file.originalname}`;
 
     try {
-        // Retrieve and decrypt user's stored encryption key
-        const decryptedKey = Buffer.from(req.user.getDecryptedKey(), 'hex');
+        const decryptedKeyHex = req.user.getDecryptedKey();
+        const decryptedKey = Buffer.from(decryptedKeyHex, 'hex');
+        
         const iv = generateIv(); 
 
         if (iv.length !== 16) {
@@ -38,6 +64,7 @@ const uploadFile = asyncHandler(async (req, res) => {
 
         // Save file metadata to the database
         const newFile = await Files.create({
+            id: uuidv4(),
             originalName: req.file.originalname,
             size: req.file.size,
             iv: iv.toString('hex'), // Store IV in hex format
@@ -68,6 +95,7 @@ const uploadFile = asyncHandler(async (req, res) => {
             console.warn(`Cleanup failed: ${err.message}`);
         }
 
+
         return res.status(500).json({ error: "File upload failed!" });
     }
 });
@@ -77,7 +105,9 @@ const downloadFile = asyncHandler(async (req, res) => {
     const { id } = req.params;
 
     // Fetch file metadata from DB
-    const file = await Files.findOne({ where: { id, userEmail: req.user.email } });
+    const file = await Files.findOne({
+        where: { id: { [Op.eq]: id }, userEmail: req.user.email },
+    });
     if (!file) return res.status(404).json({ error: "File not found!" });
 
     const { s3Key, iv, originalName } = file;
@@ -124,5 +154,5 @@ const downloadFile = asyncHandler(async (req, res) => {
 });
 
 
-export { uploadFile, downloadFile };
+export { uploadFile, downloadFile,fetchFiles };
 
