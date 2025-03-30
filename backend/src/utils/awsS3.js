@@ -7,6 +7,8 @@ const s3Client = new S3Client({
         secretAccessKey: process.env.AWS_SECRET_KEY
     } 
 });
+
+
 const uploadToS3 = async(fileBuffer,filename,mimetype)=>{
     const command = new PutObjectCommand({
         Bucket: 'project.encryptedfiles',
