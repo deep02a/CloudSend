@@ -1,4 +1,5 @@
-import { S3Client,PutObjectCommand,GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client,PutObjectCommand,GetObjectCommand, HeadObjectCommand,} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const s3Client = new S3Client({ 
     region: "ap-south-1",
@@ -77,4 +78,22 @@ const getFromS3 = async (s3Key) => {
 };
 
 
-export {uploadToS3,getFromS3}
+const get_SignedUrl = async (s3key) => {
+    try {
+        const command = new GetObjectCommand({
+            Bucket: 'project.encryptedfiles',
+            Key: s3key
+        });
+        
+        const signedUrl = await getSignedUrl(s3Client, command, { 
+            expiresIn: 3600 
+        });
+        
+        return signedUrl;
+    } catch (error) {
+        console.error('Error generating signed URL:', error);
+        throw error; 
+    }
+};
+
+export {uploadToS3,getFromS3,get_SignedUrl}

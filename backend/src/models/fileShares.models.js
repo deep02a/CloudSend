@@ -39,7 +39,10 @@ FileShares.belongsTo(User, { foreignKey: "recipientEmail", as: "Recipient" });
 FileShares.belongsTo(User, { foreignKey: "senderEmail", as: "Sender" });
 
 File.hasMany(FileShares, { foreignKey: "fileId", onDelete: "CASCADE" });
+
+// Ensure aliases are unique
 User.hasMany(FileShares, { foreignKey: "recipientEmail", as: "ReceivedFiles" });
 User.hasMany(FileShares, { foreignKey: "senderEmail", as: "SentFiles" });
+
 
 export default FileShares;
