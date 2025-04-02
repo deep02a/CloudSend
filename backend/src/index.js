@@ -9,7 +9,7 @@ dotenv.config({
 
 import {connectDB} from './db/index.js';
 
-User.sync();
+User.sync({alter:true});
 Files.sync({alter:true});
 FileShares.sync({alter:true});
 
@@ -17,7 +17,7 @@ FileShares.sync({alter:true});
 connectDB()
 .then(()=>{
     app.listen(process.env.PORT || 3001,()=>{
-        console.log(`listening on ${process.env.PORT || 3001}`);
+        console.log(`listening on ${process.env.PORT || 5000}`);
     });
 })
 .catch((err)=>{

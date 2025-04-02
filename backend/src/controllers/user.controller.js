@@ -156,6 +156,45 @@ const verifyOTP = asyncHandler(async (req, res)=>{
     }
 });
 
+const socialLogin = asyncHandler(async (req, res) => {
+    const { email, username, provider } = req.body;
+
+    if (!email) {
+        return res.status(400).json({ error: "Email is required" });
+    }
+
+    let user = await User.findOne({ where: { email } });
+
+    if (!user) {
+        // Generate encryption key for the new user
+        const userKey = crypto.randomBytes(32).toString("hex");  
+        const encryptedKey = encryptKey(userKey); 
+
+        user = await User.create({
+            username,
+            email,
+            password: null, 
+            encryptionKey: encryptedKey,
+            isVerified: true, 
+        });
+    }
+    console.log(`User logged in via ${provider}`);
+
+    const { accessToken, refreshToken } = await generateAccessTokenAndRefreshToken(user.email);
+
+
+    return res.status(200).json({
+        message: "User authenticated via social login",
+        accessToken,
+        refreshToken,
+        user: {
+            email: user.email,
+            username: user.username
+        },
+    });
+
+});
+
 const loginUser = asyncHandler(async (req, res)=>{
 
     const {email, password} = req.body
@@ -306,4 +345,4 @@ const  changeCurrentPassword = asyncHandler(async (req, res)=>{
 })
 
 
-export {registerUser, loginUser, logoutUser,refreshAccessToken,changeCurrentPassword,verifyOTP}
+export {registerUser, loginUser, logoutUser,refreshAccessToken,changeCurrentPassword,verifyOTP,socialLogin}

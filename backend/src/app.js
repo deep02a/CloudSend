@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from "cookie-parser"
-import { registerUser,loginUser,logoutUser,refreshAccessToken,changeCurrentPassword,verifyOTP } from './controllers/user.controller.js';
+import { registerUser,loginUser,logoutUser,refreshAccessToken,changeCurrentPassword,verifyOTP,socialLogin } from './controllers/user.controller.js';
 import { uploadFile,downloadFile,fetchFiles } from './controllers/file.controller.js';
 import { verifyJWT } from './middlewares/auth.middleware.js';
 import { upload } from './middlewares/multer.middleware.js';
@@ -20,6 +20,7 @@ app.use(cookieParser());
 app.post('/register',registerUser);
 app.get('/verify-otp',verifyOTP);
 app.post('/login',loginUser);
+app.post('/social-login',socialLogin);
 
 //secured routes
 app.post('/logout',verifyJWT,logoutUser);
