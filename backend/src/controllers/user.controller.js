@@ -115,6 +115,7 @@ const registerUser = asyncHandler(async (req,res)=>{
             process.env.JWT_SECRET,
             {expiresIn: '10m'}
         )
+        console.log("Generated Token in Backend:", tempToken);
         res.status(200).json(
             new ApiResponse(200, tempToken, "OTP sent to email")
         );    
@@ -125,9 +126,23 @@ const registerUser = asyncHandler(async (req,res)=>{
 })
 
 const verifyOTP = asyncHandler(async (req, res)=>{
-    const { otp, tempToken } = req.body;
 
-    const decoded = jwt.verify(tempToken, process.env.JWT_SECRET);
+    console.log("Received Request Body:", req.body);
+    const { otp,tempToken  } = req.body;
+
+    console.log("Received Token in Backend:", tempToken); 
+
+    if (!tempToken) {
+        return res.status(400).json({ message: "No token received from frontend" });
+    }
+    
+    let decoded;
+    try {
+        decoded = jwt.verify(tempToken, process.env.JWT_SECRET);
+    } catch (err) {
+        return res.status(401).json({ message: "Invalid or expired token" });
+    }
+    
 
     if (!otpStore.has(decoded.email)) {
         //console.error(error)
@@ -150,9 +165,21 @@ const verifyOTP = asyncHandler(async (req, res)=>{
             }
         );
         otpStore.delete(decoded.email);
-        res.status(200).json({ message: 'OTP verified successfully' });
+
+        const { accessToken, refreshToken  } = await generateAccessTokenAndRefreshToken(decoded.email)
+
+        const options = {
+            httpOnly: true,
+            secure: true
+        }
+
+        res.status(200)
+        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", refreshToken, options)
+        .json({ message: 'OTP verified successfully' });
     } else {
-        res.status(401).json({ message: 'Invalid or expired OTP' });
+        res.status(401)
+        .json({ message: 'Invalid or expired OTP' });
     }
 });
 

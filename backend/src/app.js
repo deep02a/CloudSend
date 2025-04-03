@@ -10,7 +10,8 @@ import { shareFile,getdownloadFile,getSharedFiles } from './controllers/fileShar
 const app = express();
 
 app.use(cors({
-    origin:process.env.CORS_ORIGIN
+    origin:process.env.CORS_ORIGIN,
+    credentials: true,
 }));
 app.use(express.json({limit:"16kb"}))
 app.use(express.urlencoded({limit:"16kb"}));
@@ -18,7 +19,7 @@ app.use(express.static("public"))
 app.use(cookieParser());
 
 app.post('/register',registerUser);
-app.get('/verify-otp',verifyOTP);
+app.post('/verify-otp',verifyOTP);
 app.post('/login',loginUser);
 app.post('/social-login',socialLogin);
 
