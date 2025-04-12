@@ -127,10 +127,10 @@ const registerUser = asyncHandler(async (req,res)=>{
 
 const verifyOTP = asyncHandler(async (req, res)=>{
 
-    console.log("Received Request Body:", req.body);
+   
     const { otp,tempToken  } = req.body;
 
-    console.log("Received Token in Backend:", tempToken); 
+     
 
     if (!tempToken) {
         return res.status(400).json({ message: "No token received from frontend" });
@@ -170,7 +170,9 @@ const verifyOTP = asyncHandler(async (req, res)=>{
 
         const options = {
             httpOnly: true,
-            secure: true
+            secure: false,
+            sameSite: "lax",
+            maxAge: 15 * 60 * 1000,
         }
 
         res.status(200)
@@ -183,44 +185,132 @@ const verifyOTP = asyncHandler(async (req, res)=>{
     }
 });
 
-const socialLogin = asyncHandler(async (req, res) => {
-    const { email, username, provider } = req.body;
-
+const socialLogin = async ({ email, username }) => {
+    console.log("⚙️ [socialLogin] Email:", email, "| Username:", username);
+  
     if (!email) {
-        return res.status(400).json({ error: "Email is required" });
+      console.log("❌ [socialLogin] No email provided");
+      throw new Error("Email is required");
     }
-
+  
     let user = await User.findOne({ where: { email } });
-
+  
     if (!user) {
-        // Generate encryption key for the new user
-        const userKey = crypto.randomBytes(32).toString("hex");  
-        const encryptedKey = encryptKey(userKey); 
-
-        user = await User.create({
-            username,
-            email,
-            password: null, 
-            encryptionKey: encryptedKey,
-            isVerified: true, 
-        });
+      console.log("👤 [socialLogin] User not found, creating new one...");
+  
+      const userKey = crypto.randomBytes(32).toString("hex");
+      const encryptedKey = encryptKey(userKey);
+  
+      user = await User.create({
+        username,
+        email,
+        password: null,
+        encryptionKey: encryptedKey,
+        isVerified: true,
+      });
     }
-    console.log(`User logged in via ${provider}`);
+  
+    const tokens = await generateAccessTokenAndRefreshToken(user.email);
+    console.log("✅ [socialLogin] Generated Tokens:", tokens);
 
-    const { accessToken, refreshToken } = await generateAccessTokenAndRefreshToken(user.email);
+    console.log("🚀 Google Login Callback triggered");
+console.log("req.user from passport:", req.user);
 
+  
+    return {
+      user,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
+  };
+  
+  
 
-    return res.status(200).json({
-        message: "User authenticated via social login",
-        accessToken,
-        refreshToken,
-        user: {
-            email: user.email,
-            username: user.username
-        },
-    });
+  const findOrCreateUserFromGoogle = async (profile) => {
+    const email = profile.emails[0].value;
+    const username = profile.displayName;
+  
+    let user = await User.findOne({ where: { email } });
+  
+    if (!user) {
+      const userKey = crypto.randomBytes(32).toString("hex");  // Generate a new encryption key
+      const encryptedKey = encryptKey(userKey); 
+  
+      user = await User.create({
+        email,
+        username,
+        password: null,
+        isVerified: true,
+        encryptionKey: encryptedKey,
+      });
+    }
+  
+    console.log("🔄 User returned from findOrCreateUserFromGoogle:", user);
+    return user;
+  };
+  
+  
 
-});
+  const googleLoginCallback = async (req, res, next) => {
+    try {
+      const email = req.user?.email;
+      const username = req.user?.username || req.user?.displayName;
+
+      console.log("🔍 Google user received:", email, username);
+  
+      if (!email || !username) throw new Error("Missing email or username from Google");
+  
+      const result = await socialLogin({ email, username });
+      console.log("✅ Result from socialLogin:", result);
+  
+      if (!result || !result.user || !result.accessToken) {
+        console.error("❌ OAuth social login failed to return user or token");
+        return res.redirect("http://localhost:3000/login?error=OAuthFailed");
+      }
+  
+      const { accessToken, refreshToken } = result;
+
+      console.log("🍪 Setting cookies and redirecting...");
+  
+      const options = {
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+        maxAge: 15 * 60 * 1000,
+      };
+
+      console.log("✅ Setting accessToken:", accessToken);
+
+        res.cookie("accessToken", accessToken, options);
+        res.cookie("refreshToken", refreshToken, options);
+  
+        return res.redirect(`http://localhost:3000/dashboard`);
+    } catch (err) {
+      console.error("Google OAuth Error:", err);
+      res.redirect("http://localhost:3000/login?error=OAuthFailed");
+    }
+  };
+  
+  
+  
+
+  const getMe = async (req, res) => {
+    try {
+      const user = await User.findOne({
+        where: { email: req.user.email },
+        attributes: ['username', 'email'], // include other fields if needed
+      });
+  
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+  
+      res.json(user);
+    } catch (err) {
+      console.error("Error in /me:", err);
+      res.status(500).json({ message: "Server Error" });
+    }
+  };
 
 const loginUser = asyncHandler(async (req, res)=>{
 
@@ -260,7 +350,9 @@ const loginUser = asyncHandler(async (req, res)=>{
 
     const options = {
         httpOnly: true,
-        secure: true
+        secure: false,
+        sameSite: "lax",
+        maxAge: 15 * 60 * 1000,
     }
 
     return res
@@ -372,4 +464,14 @@ const  changeCurrentPassword = asyncHandler(async (req, res)=>{
 })
 
 
-export {registerUser, loginUser, logoutUser,refreshAccessToken,changeCurrentPassword,verifyOTP,socialLogin}
+export {
+    registerUser, 
+    loginUser, 
+    logoutUser,
+    refreshAccessToken,
+    changeCurrentPassword,
+    verifyOTP,
+    socialLogin,
+    googleLoginCallback,
+    getMe,
+    findOrCreateUserFromGoogle}

@@ -1,15 +1,24 @@
 import { encrypt, decryptBuffer,generateIv} from '../utils/encryptAndDecryptFile.js';
 import {asyncHandler} from '../utils/asyncHandler.js';
-import {uploadToS3,getFromS3 } from '../utils/awsS3.js';
+import {uploadToS3,getFromS3,deleteFromS3 } from '../utils/awsS3.js';
 import Files from '../models/file.models.js';
 import fs from "fs";
 import { v4 as uuidv4 } from 'uuid';
 import { Op } from 'sequelize';
+import { log } from 'console';
 
 
 const fetchFiles = asyncHandler(async(req,res) => {
     try {
         const userEmail = req.user.email;
+
+        if (!userEmail) {
+            return res.status(400).json({ message: "User email missing" });
+        }
+
+        if (!userEmail) {
+            return res.status(400).json({ message: "User email missing" });
+        }
     
         const files = await Files.findAll({
             where: { userEmail },
@@ -20,10 +29,8 @@ const fetchFiles = asyncHandler(async(req,res) => {
         if (!files.length) {
             return res.status(404).json({ message: 'No files found for this user.' });
         }
-    
-        res.status(200).json({ files });
+        res.status(200).json({files} );
     } catch (error) {
-        console.error("Error fetching files:", error);
         res.status(500).json({ message: 'Internal server error.' });
         
     }
@@ -100,6 +107,30 @@ const uploadFile = asyncHandler(async (req, res) => {
     }
 });
 
+const deleteFile = asyncHandler(async (req, res) => {
+    const fileId = req.params.id;
+    const userEmail = req.user.email;
+
+    try {
+        const file = await Files.findOne({ where: { id: fileId, userEmail } });
+
+        if (!file) {
+            return res.status(404).json({ message: "File not found or unauthorized" });
+        }
+
+        // Delete from S3 using helper
+        await deleteFromS3(file.s3Key);
+
+        // Delete from DB
+        await file.destroy();
+
+        return res.status(200).json({ message: "File deleted successfully" });
+    } catch (error) {
+        console.error("Delete file error:", error);
+        return res.status(500).json({ error: "Failed to delete file" });
+    }
+});
+
 
 const downloadFile = asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -153,6 +184,34 @@ const downloadFile = asyncHandler(async (req, res) => {
     }
 });
 
+const fileRename = asyncHandler(async (req, res) => {
+    const fileId = req.params.id;
+    const { newName } = req.body;
+  
+    if (!newName || !fileId) {
+      return res.status(400).json({ message: "Missing file ID or new name" });
+    }
+  
+    const userEmail = req.user.email; // assuming this is set by verifyJWT
+  
+    try {
+      const file = await Files.findOne({ where: { id: fileId, userEmail } });
+  
+      if (!file) {
+        return res.status(404).json({ message: "File not found or unauthorized" });
+      }
+  
+      file.originalName = newName;
+      await file.save();
+  
+      res.status(200).json({ message: "Renamed successfully" });
+    } catch (error) {
+      console.error("Rename error:", error);
+      res.status(500).json({ error: "Failed to rename" });
+    }
+  });
+  
 
-export { uploadFile, downloadFile,fetchFiles };
+
+export { uploadFile, downloadFile,fetchFiles,fileRename,deleteFile };
 

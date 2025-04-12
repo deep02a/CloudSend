@@ -1,4 +1,4 @@
-import { S3Client,PutObjectCommand,GetObjectCommand, HeadObjectCommand,} from "@aws-sdk/client-s3";
+import { S3Client,PutObjectCommand,GetObjectCommand, HeadObjectCommand,DeleteObjectCommand} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const s3Client = new S3Client({ 
@@ -78,6 +78,22 @@ const getFromS3 = async (s3Key) => {
 };
 
 
+const deleteFromS3 = async (s3Key) => {
+    try {
+        const command = new DeleteObjectCommand({
+            Bucket: 'project.encryptedfiles',
+            Key: s3Key,
+        });
+        await s3Client.send(command);
+        console.log(`File deleted from S3: ${s3Key}`);
+        return true;
+    } catch (error) {
+        console.error(`Failed to delete from S3 [${s3Key}]:`, error.message);
+        throw new Error("S3 deletion failed");
+    }
+};
+
+
 const get_SignedUrl = async (s3key) => {
     try {
         const command = new GetObjectCommand({
@@ -96,4 +112,4 @@ const get_SignedUrl = async (s3key) => {
     }
 };
 
-export {uploadToS3,getFromS3,get_SignedUrl}
+export {uploadToS3,deleteFromS3,getFromS3,get_SignedUrl}

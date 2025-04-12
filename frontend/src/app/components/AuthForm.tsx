@@ -2,7 +2,6 @@
 
 import { FC, useState } from "react";
 import Link from "next/link";
-import { signIn } from "next-auth/react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import Image from "next/image";
 import axios from "axios";
@@ -47,11 +46,10 @@ const validatePassword = () => {
 };
 
 
-  const handleSocialSignIn = async (provider: "google" | "twitter") => {
-    provider === "google" ? setLoadingGoogle(true) : setLoadingTwitter(true);
-    await signIn(provider, { callbackUrl: "/dashboard" });
-    provider === "google" ? setLoadingGoogle(false) : setLoadingTwitter(false);
-  };
+const handleSocialSignIn = async (provider: "google" | "twitter") => {
+  const redirectUrl = `http://localhost:5000/auth/${provider}`;
+  window.location.href = redirectUrl;
+};
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,8 +192,12 @@ const validatePassword = () => {
             <span className="flex-1 border-t border-gray-300 dark:border-gray-600"></span>
           </div>
           <div className="flex justify-center gap-4 mt-2">
-            <button onClick={() => handleSocialSignIn("google")}><img src="/google.svg" alt="Google" className="w-6 h-6" /></button>
-            <button onClick={() => handleSocialSignIn("twitter")}><img src="/twitter.svg" alt="Twitter" className="w-6 h-6" /></button>
+            <button type="button" onClick={() => handleSocialSignIn("google")}>
+              <img src="/google.svg" alt="Google" className="w-6 h-6" />
+            </button>
+            <button type="button" onClick={() => handleSocialSignIn("twitter")}>
+              <img src="/twitter.svg" alt="Twitter" className="w-6 h-6" />
+            </button>
           </div>
         </form>
         {otpModal && (

@@ -1,23 +1,30 @@
 "use client";
 import React, {  useEffect, useState} from "react";
 import { Sidebar, SidebarBody, SidebarLink } from "@/app/components/ui/sidebar";
+import api from "@/lib/axios"; // ✅ Adjust the path if needed
+
+
 import {
   IconArrowLeft,
   IconUserCircle,
   IconSend,
   IconDownload,
   IconMenu2,
+  IconUpload,
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import axios from "axios";
-import { cn } from "../../../lib/utils";
+import { FileCard } from "../components/fileCard";
+import { ShareModal } from "../components/ShareModal";
+import { cn } from "@/lib/utils";
+
 
 
 type FileType = {
-  id: number;
-  name: string;
-  size: string;
+  id: string;
+  originalName: string;
+  size: number;
   uploadedAt: string;
 };
 
@@ -26,10 +33,11 @@ const loggedInUser = "John Doe";
 
 export function SidebarDemo() {
   const links = [
-    { label: "Received Files", href: "/received", icon: <IconDownload className="icon" /> },
-    { label: "Sent Files", href: "/sent", icon: <IconSend className="icon" /> },
-    { label: "Profile", href: "/profile", icon: <IconUserCircle className="icon" /> },
-    { label: "Logout", href: "/logout", icon: <IconArrowLeft className="icon" /> },
+    { label: "Upload File", href: "/dashboard/upload-file", icon: <IconUpload className="icon" /> },
+    { label: "Received Files", href: "/dashboard/received", icon: <IconDownload className="icon" /> },
+    { label: "Sent Files", href: "/dashboard/sent", icon: <IconSend className="icon" /> },
+    { label: "Profile", href: "/dashboard/profile", icon: <IconUserCircle className="icon" /> },
+    { label: "Logout", href: "/dashboard/logout", icon: <IconArrowLeft className="icon" /> },
   ];
 
   const [open, setOpen] = useState(true);
@@ -95,14 +103,40 @@ export const LogoIcon = () => (
 export const Dashboard = () => {
   const [files, setFiles] = useState<FileType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
+
 
   useEffect(() => {
     const fetchFiles = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/fetch-files",{ withCredentials: true }); // Update this URL to match your backend route
-        setFiles(res.data);
-      } catch (err) {
-        console.error("Error fetching files:", err);
+
+        const res = await api.get("/fetch-files", {
+          withCredentials: true,
+        });
+        
+        const filesWithCorrectTypes = Array.isArray(res.data.files)
+          ? res.data.files.map((file: any) => ({
+              id: file.id,
+              originalName: file.originalName,
+              size: Number(file.size),
+              uploadedAt: file.uploadedAt || "",
+            }))
+          : [];
+
+        console.log("Parsed files:", filesWithCorrectTypes);
+        setFiles(filesWithCorrectTypes);
+      } catch (err:any) {
+        if (err.response) {
+          console.error("Error fetching files:", err.response.status, err.response.data);
+          alert(`Error: ${err.response.status} - ${err.response.data}`);
+        } else if (err.request) {
+          console.error("No response received:", err.request);
+          alert("No response from server");
+        } else {
+          console.error("Axios error:", err.message);
+          alert(`Error: ${err.message}`);
+        }
       } finally {
         setLoading(false);
       }
@@ -110,6 +144,50 @@ export const Dashboard = () => {
 
     fetchFiles();
   }, []);
+
+  const handleRename = async (fileId: string, newName: string) => {
+    try {
+      // 1. Update on the server
+      await api.patch(`files/rename/${fileId}`, { newName }, { withCredentials: true });
+  
+      // 2. Update the UI
+      setFiles((prevFiles) =>
+        prevFiles.map((file) =>
+          file.id === fileId ? { ...file, originalName: newName } : file
+        )
+      );
+    } catch (error: any) {
+      console.error("Rename failed", error);
+      alert("Failed to rename the file.");
+    }
+  };
+
+  const handleDownload = (fileId: string) => {
+    console.log("Downloading file:", fileId);
+    // Implement download logic here
+  };
+
+  const handleShare = (fileId: string) => {
+    setSelectedFileId(fileId);
+    setShareModalOpen(true);
+  };
+
+  const handleSubmitShare = (email: string) => {
+    console.log("Sharing file:", selectedFileId, "with:", email);
+    // Implement API logic to share file here
+  };
+
+  const handleDelete = async (fileId: string) => {
+    try {
+      const res = await axios.delete(`/delete-file/${fileId}`, {
+        withCredentials: true,
+      });
+      console.log("Deleted:", res.data);
+      // Refresh your file list
+    } catch (err:any) {
+      console.error("Delete failed:", err.response?.data || err.message);
+    }
+  }
 
   return (
     <div className="flex flex-1 h-full w-full p-4 md:p-10 overflow-hidden">
@@ -122,13 +200,21 @@ export const Dashboard = () => {
               />
             ))
           : files.map((file) => (
-              <div
+              <FileCard
                 key={file.id}
-                className="aspect-square w-full max-w-[80px] rounded-xl bg-white shadow-md flex items-center justify-center text-center text-xs p-2 dark:bg-neutral-800 dark:text-white"
-              >
-                {file.name}
-              </div>
+                file={{ id: file.id.toString(), originalName: file.originalName, size: file.size }}
+                onDownload={handleDownload}
+                onShare={handleShare}
+                onRename={handleRename}
+                onDelete={handleDelete}
+              />
             ))}
+
+        <ShareModal
+          open={shareModalOpen}
+          onClose={() => setShareModalOpen(false)}
+          onSubmit={handleSubmitShare}
+        />
       </div>
     </div>
   );
