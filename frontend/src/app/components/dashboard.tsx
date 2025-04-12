@@ -1,8 +1,8 @@
 "use client";
 import React, {  useEffect, useState} from "react";
 import { Sidebar, SidebarBody, SidebarLink } from "@/app/components/ui/sidebar";
-import api from "@/lib/axios"; // ✅ Adjust the path if needed
-
+import api from "@/lib/axios"; 
+import { toast } from "sonner";
 
 import {
   IconArrowLeft,
@@ -172,20 +172,44 @@ export const Dashboard = () => {
     setShareModalOpen(true);
   };
 
-  const handleSubmitShare = (email: string) => {
-    console.log("Sharing file:", selectedFileId, "with:", email);
-    // Implement API logic to share file here
+  const handleSubmitShare = async (email: string) => {
+    if (!selectedFileId) return;
+  
+    const toastId = toast.loading("Sharing file...");
+  
+    try {
+      const res = await api.post(
+        "/get-shared-file",
+        {
+          fileId: selectedFileId,
+          recipientEmail: email,
+        },
+        { withCredentials: true }
+      );
+  
+      toast.success("File shared successfully!", { id: toastId });
+      setShareModalOpen(false);
+      setSelectedFileId(null);
+    } catch (err: any) {
+      console.error("Error sharing file:", err.response?.data || err.message);
+      toast.error(err.response?.data?.message || "Failed to share file", { id: toastId });
+    }
   };
+  
 
   const handleDelete = async (fileId: string) => {
+    const toastId = toast.loading("Deleting file...");
     try {
-      const res = await axios.delete(`/delete-file/${fileId}`, {
+      const res = await api.delete(`/delete-file/${fileId}`, {
         withCredentials: true,
       });
-      console.log("Deleted:", res.data);
+      toast.success("File deleted successfully", { id: toastId });
+      setFiles((prevFiles) => prevFiles.filter((file) => file.id !== fileId));
       // Refresh your file list
     } catch (err:any) {
-      console.error("Delete failed:", err.response?.data || err.message);
+      toast.error(err?.response?.data?.message || "Failed to delete file", {
+        id: toastId,
+      });
     }
   }
 

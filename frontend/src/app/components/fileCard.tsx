@@ -28,6 +28,7 @@ interface FileCardProps {
   onShare: (id: string) => void;
   onRename: (id: string, newName: string) => void;
   onDelete: (id: string) => void;
+  disabledOptions?: ('rename' | 'delete' | 'share')[];
 }
 
 // Helper: Get file extension from mime type
@@ -192,6 +193,7 @@ export const FileCard: React.FC<FileCardProps> = ({
       </motion.div>
       </div>
     )}  
+    
     </div>
   );
 }  
