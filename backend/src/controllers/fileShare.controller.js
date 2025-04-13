@@ -10,6 +10,7 @@ import crypto from "crypto";
 //import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { get_SignedUrl } from "../utils/awsS3.js";
 import { v4 as uuidv4 } from 'uuid';
+import e from "express";
 
 const decryptStoredEncryptionKey = (encryptedKey) => {
     const [ivHex, encryptedHex] = encryptedKey.split(":");
@@ -84,14 +85,36 @@ const getdownloadFile = asyncHandler(async (req, res) => {
 });
 
 const getSharedFiles = asyncHandler(async (req, res) => {
-    const recipientEmail = req.user.email;
-
-    const sharedFiles = await FileShares.findAll({
-        where: { recipientEmail },
-        include: [{ model: File }],
+    const userEmail = req.user.email;
+  
+    const sharedEntries = await FileShares.findAll({
+      where: { recipientEmail: userEmail },
+      include: [
+        { model: File, attributes: ['id', 'originalName', 'size', 'iv', 's3Key'] },
+        { model: User, as: 'Sender', attributes: ['email'] }
+      ]
     });
+    console.log(sharedEntries);
+  
+    const files = sharedEntries.map(entry => ({
+      fileId: entry.fileId,
+      originalName: entry.file?.originalName,
+      size: entry.file?.size,
+      iv: entry.file?.iv,
+      s3Key: entry.file?.s3Key,
+      encryptedKeyForRecipient: entry.encryptedKeyForRecipient,
+      senderEmail: entry.senderEmail
+    }));
+     
+    if(!files){
+      throw new ApiError(error);
+    }
 
-    res.status(200).json(new ApiResponse(200, sharedFiles, "Shared files retrieved successfully"));
-});
+    if(!files.length) {
+      return res.status(404).json(new ApiResponse(404, {}, "No shared files found"));
+    }
+
+    res.status(200).json({ files });
+  });
 
 export { shareFile, getdownloadFile,getSharedFiles };

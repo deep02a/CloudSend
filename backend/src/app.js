@@ -76,7 +76,7 @@ app.get('/fetch-files',verifyJWT,fetchFiles)
 app.patch('/files/rename/:id',verifyJWT,fileRename)
 app.post('/share-file',verifyJWT,shareFile)
 app.get('/get-download-file/:fileId',verifyJWT,getdownloadFile)
-app.post('/get-shared-file',verifyJWT,getSharedFiles)
+app.get('/get-recieved-file',verifyJWT,getSharedFiles)
 
 
 //import userRouter from './routes/user.routes.js';

@@ -162,9 +162,32 @@ export const Dashboard = () => {
     }
   };
 
-  const handleDownload = (fileId: string) => {
-    console.log("Downloading file:", fileId);
-    // Implement download logic here
+  const handleDownload = async (fileId: string, fileName: string) => {
+    const toastId = toast.loading(`Preparing "${fileName}"...`);
+    try {
+      console.log("Downloading file:", fileId);
+  
+      const response = await api.get(`/download/${fileId}`, {
+        responseType: 'blob', // Important for binary data
+        withCredentials: true, // Needed if JWT is stored in cookies
+      });
+  
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName); // Use actual file name
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+
+
+      toast.success(`"${fileName}" downloaded is ready for download`, { id: toastId });
+    } catch (error) {
+      console.error("Download failed:", error);
+      toast.error(`Failed to download "${fileName}"`, { id: toastId });
+    }
   };
 
   const handleShare = (fileId: string) => {
@@ -179,7 +202,7 @@ export const Dashboard = () => {
   
     try {
       const res = await api.post(
-        "/get-shared-file",
+        "/share-file",
         {
           fileId: selectedFileId,
           recipientEmail: email,
@@ -227,7 +250,7 @@ export const Dashboard = () => {
               <FileCard
                 key={file.id}
                 file={{ id: file.id.toString(), originalName: file.originalName, size: file.size }}
-                onDownload={handleDownload}
+                onDownload={() => handleDownload(file.id, file.originalName)}
                 onShare={handleShare}
                 onRename={handleRename}
                 onDelete={handleDelete}
