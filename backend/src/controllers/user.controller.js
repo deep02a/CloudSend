@@ -298,7 +298,7 @@ console.log("req.user from passport:", req.user);
     try {
       const user = await User.findOne({
         where: { email: req.user.email },
-        attributes: ['username', 'email'], // include other fields if needed
+        attributes: ['username', 'email'], 
       });
   
       if (!user) {
